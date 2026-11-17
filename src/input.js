@@ -1,55 +1,15 @@
-// Becak Rush input: keyboard state + mouse clicks mapped to canvas coords.
-export function createInput(canvas) {
-  const keys = {};
-  const input = {
-    left: false, right: false, up: false, down: false,
-    honkPressed: false, clickX: 0, clickY: 0, clicked: false,
-    mouseX: 0, mouseY: 0, mouseDown: false,
-  };
-
-  function refresh() {
-    input.left = keys['arrowleft'] || keys['a'] || false;
-    input.right = keys['arrowright'] || keys['d'] || false;
-    input.up = keys['arrowup'] || keys['w'] || false;
-    input.down = keys['arrowdown'] || keys['s'] || false;
-  }
-
-  window.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-    keys[k] = true;
-    if (k === ' ') { input.honkPressed = true; e.preventDefault(); }
-    if (['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k)) e.preventDefault();
-    refresh();
-    if (input.onKey) input.onKey(k);
-  });
-  window.addEventListener('keyup', (e) => {
-    keys[e.key.toLowerCase()] = false;
-    refresh();
-  });
-
-  function toCanvas(e) {
-    const r = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - r.left) * (1280 / r.width),
-      y: (e.clientY - r.top) * (720 / r.height),
-    };
-  }
-
-  canvas.addEventListener('mousemove', (e) => {
-    const p = toCanvas(e);
-    input.mouseX = p.x; input.mouseY = p.y;
-  });
-  canvas.addEventListener('mousedown', (e) => {
-    const p = toCanvas(e);
-    input.mouseDown = true; input.clickX = p.x; input.clickY = p.y; input.clicked = true;
-  });
-  window.addEventListener('mouseup', () => { input.mouseDown = false; });
-  input.consumeClick = () => { const c = input.clicked; input.clicked = false; return c; };
-  input.onKey = null;
-  return input;
-}
-
-export function hitButton(input, x, y, w, h) {
-  if (!input.consumeClick()) return false;
-  return input.clickX >= x && input.clickX <= x + w && input.clickY >= y && input.clickY <= y + h;
+export const ACTION_CONFIRM=1,ACTION_PAUSE=2;
+const L=new Set(['ArrowLeft','KeyA']),R=new Set(['ArrowRight','KeyD']),C=new Set(['Space','Enter']),P=new Set(['KeyP','Escape']);
+export function createInput(t){
+let l=0,r=0,a=0,pd=0,pa=0;
+t.style.touchAction='none';
+const up=e=>{let x=e.clientX-t.getBoundingClientRect().left;pd=x<t.getBoundingClientRect().width/2?-1:1};
+addEventListener('keydown',e=>{if(L.has(e.code))l=1;else if(R.has(e.code))r=1;else if(C.has(e.code)){if(!e.repeat)a|=1}else if(P.has(e.code)){if(!e.repeat)a|=2}else return;e.preventDefault()});
+addEventListener('keyup',e=>{if(L.has(e.code))l=0;if(R.has(e.code))r=0});
+addEventListener('blur',()=>{l=r=pa=pd=0});
+t.addEventListener('pointerdown',e=>{e.preventDefault();pa=1;up(e);a|=1});
+t.addEventListener('pointermove',e=>{if(pa)up(e)});
+t.addEventListener('pointerup',()=>pa=pd=0);
+t.addEventListener('pointercancel',()=>pa=pd=0);
+return{direction:()=>pa?pd:r-l,takeActions:()=>{let v=a;a=0;return v}};
 }

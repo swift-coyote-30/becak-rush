@@ -1,80 +1,136 @@
-import { FIELD } from './config.js';
-import { createState, resetRun, spawnPassenger, update, tryPickup } from './game.js';
-import { drawBackground, drawPassengerWaiting, drawDestination, drawBecak, drawHUD, drawGameOver } from './render.js';
+// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
+// (several in a slow frame, none in a fast one), and the renderer paints what is there. The game
+// moves between four screens: title, play, paused and game over.
+//
+// ?seed=N fixes the falling pattern. ?shot=start|play|end (with &seed=N) stages that scene
+// instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
+import { BEST_KEY, LIVES, STEP } from './config.js';
+import { createRandom } from './random.js';
+import { createWorld, EVENT_HIT, EVENT_OVER, EVENT_HEAL, EVENT_COIN } from './world.js';
+import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
+import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+import { stageShot } from './shots.js';
+
+/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
+const MAX_FRAME = 0.25;
+
+const params = new URLSearchParams(window.location.search);
+const shot = params.get('shot');
+const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
+const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
+
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const state = createState();
-let keys = {};
-let touch = { active: false, x: 0, y: 0 };
-let joy={active:false,ox:0,oy:0,dx:0,dy:0};
-let cam={x:0,y:0};
-addEventListener('keydown', e => {
-  keys[e.key.toLowerCase()] = true;
-  if (e.key === 'Enter' && state.phase === 'over') resetRun(state);
-  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
-});
-addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-canvas.addEventListener('touchstart', e => {
-  const r = canvas.getBoundingClientRect();
-  const t = e.touches[0];
-  joy.active=true; joy.ox=(t.clientX - r.left) * canvas.width / r.width; joy.oy=(t.clientY - r.top) * canvas.height / r.height; joy.dx=0; joy.dy=0;
-touch.active = true; touch.x = (t.clientX - r.left) * canvas.width / r.width; touch.y = (t.clientY - r.top) * canvas.height / r.height;
-  if (state.phase === 'over') resetRun(state);
-  e.preventDefault();
-}, { passive: false });
-canvas.addEventListener('touchmove', e => {
-  const r = canvas.getBoundingClientRect();
-  const t = e.touches[0];
-  touch.x = (t.clientX - r.left) * canvas.width / r.width; touch.y = (t.clientY - r.top) * canvas.height / r.height;
-  e.preventDefault();
-}, { passive: false });
-canvas.addEventListener('touchend', () => {touch.active=false; joy.active=false; joy.dx=0; joy.dy=0;});
-let last = performance.now();
-function loop(now){
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  const input = { up: keys['w'] || keys['arrowup'], down: keys['s'] || keys['arrowdown'], left: keys['a'] || keys['arrowleft'], right: keys['d'] || keys['arrowright'], touch, joy };
-  if (state.phase === 'playing') update(state, input, dt);
-  let zw=1.2; let tx=state.becak.x-window.innerWidth/zw/2, ty=state.becak.y-window.innerHeight/zw/2; tx=Math.max(0,Math.min(1600-window.innerWidth/zw,tx)); ty=Math.max(0,Math.min(1400-window.innerHeight/zw,ty)); cam.x+=(tx-cam.x)*1; cam.y+=(ty-cam.y)*1; ctx.save(); ctx.scale(zw,zw); ctx.translate(-cam.x,-cam.y);
-drawBackground(ctx, now / 1000);
-  if (state.currentPassenger) drawDestination(ctx, state.currentPassenger);
-  for (const p of state.passengers) drawPassengerWaiting(ctx, p);
-  drawBecak(ctx, state.becak, now / 1000);
-  ctx.restore(); drawHUD(ctx, state);
-if(joy.active){ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.arc(joy.ox,joy.oy,60,0,7);ctx.fill();ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(joy.ox+joy.dx*40,joy.oy+joy.dy*40,26,0,7);ctx.fill();}
-  if (state.phase === 'over') drawGameOver(ctx, state);
-  requestAnimationFrame(loop);
-}
-for (let i = 0; i < 3; i++) spawnPassenger(state);
-requestAnimationFrame(loop);
-// D-PAD - tombol arah HP
-let dp=document.createElement('div'); dp.innerHTML=`<button id="dpL" style="position:fixed;left:12px;bottom:90px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.9);font-size:28px;z-index:99;border:0">◀</button><button id="dpR" style="position:fixed;left:92px;bottom:90px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.9);font-size:28px;z-index:99;border:0">▶</button><button id="dpU" style="position:fixed;left:52px;bottom:170px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.9);font-size:28px;z-index:99;border:0">▲</button><button id="dpD" style="position:fixed;left:52px;bottom:14px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.9);font-size:28px;z-index:99;border:0">▼</button><button id="dpG" style="position:fixed;right:16px;bottom:90px;width:80px;height:80px;border-radius:50%;background:#ffcc00;font-size:16px;z-index:99;border:0">GAS</button>`; document.body.appendChild(dp);
-window.__DPAD={up:false,down:false,left:false,right:false,gas:false};
-function bind(id,name){let el=document.getElementById(id); let on=e=>{e.preventDefault(); window.__DPAD[name]=true;}; let off=e=>{e.preventDefault(); window.__DPAD[name]=false;}; el.addEventListener('touchstart',on,{passive:false}); el.addEventListener('touchend',off); el.addEventListener('touchcancel',off); el.addEventListener('mousedown',on); el.addEventListener('mouseup',off); el.addEventListener('mouseleave',off);}
-bind('dpL','left'); bind('dpR','right'); bind('dpU','up'); bind('dpD','down'); bind('dpG','gas');
+const status = document.getElementById('status');
+const world = createWorld(createRandom(seed));
+const renderer = createRenderer(canvas);
 
-document.getElementById('btnFS')?.addEventListener('click',()=>{
-  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-  else document.exitFullscreen();
-});
-// biar pas pencet MULAI / GAS pertama kali langsung fullscreen juga
-document.addEventListener('pointerdown',()=>{ if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); },{once:true});
-
-let _c=document.querySelector('canvas'),_x=_c.getContext('2d');
-_c.style.position='fixed'; _c.style.top='0'; _c.style.left='0';
-_c.style.margin='0'; _c.style.display='block';
-document.documentElement.style.height='100%';
-document.body.style.height='100%'; document.body.style.margin='0'; document.body.style.overflow='hidden'; document.body.style.background='#111';
-let ZOOM=1;
-function fixSize(){
-  let w=document.documentElement.clientWidth, h=document.documentElement.clientHeight;
-  let d=devicePixelRatio||1;
-  _c.width=Math.floor(w*d); _c.height=Math.floor(h*d);
-  _c.style.width=w+'px'; _c.style.height=h+'px';
-  _x.setTransform(1,0,0,1,0,0); _x.clearRect(0,0,_c.width,_c.height);
-  _x.setTransform(d,0,0,d,0,0);
-  ZOOM=1;
-  if(typeof cam!=='undefined' && typeof player!=='undefined'){ cam.x=player.x-(w/ZOOM)/2; cam.y=player.y-(h/ZOOM)/2; }
+function readBest() {
+  try {
+    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
+  } catch {
+    return 0;
+  }
 }
-addEventListener('resize',fixSize);
-addEventListener('orientationchange',()=>setTimeout(fixSize,300));
-fixSize();
+
+function saveBest(value) {
+  try {
+    window.localStorage.setItem(BEST_KEY, String(value));
+  } catch {
+    // Storage can be off (private windows): the best score then lasts this visit only.
+  }
+}
+
+function runShot(name) {
+  const scene = stageShot(name, world);
+  let painted = 0;
+  function paint() {
+    renderer.draw(world.state, scene.screen, scene.best);
+    painted += 1;
+    if (painted < 2) requestAnimationFrame(paint);
+    else window.__shotReady = true;
+  }
+  requestAnimationFrame(paint);
+}
+
+function runGame() {
+  const input = createInput(canvas);
+  let screen = SCREEN_TITLE;
+  let best = readBest();
+  let accumulator = 0;
+  let last = performance.now();
+
+  // Screen readers (and anyone watching the page's text) hear the screen changes and each hit.
+  function announce(message) {
+    status.textContent = message;
+  }
+
+  function startGame() {
+    world.reset();
+    accumulator = 0;
+    screen = SCREEN_PLAY;
+    announce(`Playing. ${LIVES} lives.`);
+  }
+
+  function endGame() {
+    screen = SCREEN_OVER;
+    if (world.state.score > best) {
+      best = world.state.score;
+      saveBest(best);
+    }
+    announce(`Game over. Score ${world.state.score}. Best ${best}.`);
+  }
+
+  function handleActions() {
+    const actions = input.takeActions();
+    if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER)) startGame();
+    else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
+      screen = SCREEN_PAUSED;
+      announce('Paused.');
+    } else if (actions & (ACTION_PAUSE | ACTION_CONFIRM) && screen === SCREEN_PAUSED) {
+      screen = SCREEN_PLAY;
+      announce('Playing.');
+    }
+  }
+
+  function step() {
+    if (screen === SCREEN_TITLE) {
+      world.step(STEP, 0, true);
+      return;
+    }
+    const events = world.step(STEP, input.direction(), false);
+    if (events & EVENT_OVER) endGame();
+    else if (events & EVENT_HEAL) announce('Bakpia! +1 nyawa.');
+    else if (events & EVENT_COIN) announce('Penumpang naik!');
+    else if (events & EVENT_HIT) announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    accumulator += Math.min((now - last) / 1000, MAX_FRAME);
+    last = now;
+    handleActions();
+    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
+      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
+        step();
+        accumulator -= STEP;
+      }
+    } else {
+      accumulator = 0;
+    }
+    renderer.draw(world.state, screen, best);
+  }
+
+  // Leaving the tab pauses a running game rather than letting blocks fall unseen.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && screen === SCREEN_PLAY) {
+      screen = SCREEN_PAUSED;
+      announce('Paused.');
+    }
+  });
+
+  announce('Becak Rush. Press Space or tap to start.');
+  requestAnimationFrame(frame);
+}
+
+if (shot) runShot(shot);
+else runGame();

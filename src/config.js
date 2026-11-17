@@ -1,47 +1,24 @@
-// Becak Rush - Kampoeng Delivery
-// Every tuning number and colour in one place. Logical playfield 1280x720.
-
-export const FIELD = { width: 1280, height: 720, roadTop: 96, roadBottom: 700 };
-export const STEP = 1 / 60;
-
-export const BECAK = {
-  width: 92, height: 56, speedX: 520, speedY: 420,
-  startX: 640, startY: 560, invulnerable: 1.2,
-};
-
+export const FIELD = { width: 640, height: 1280, groundY: 1150 };
+export const PLAYER = { width: 90, height: 70, speed: 620, invulnerable: 1.2 };
+export const BLOCK = { interval: 0.85, minInterval: 0.35, intervalScale: 0.92, minWidth: 70, maxWidth: 150, height: 64, speed: 340, speedPerLevel: 35, speedJitter: 90, dodgePoints: 1 };
+export const COIN = { size: 44, interval: 1.1, intervalJitter: 0.8, speed: 320, speedPerLevel: 25, points: 10 };
+export const LEVEL = { seconds: 18, max: 8 };
 export const LIVES = 3;
-export const TARGET_MONEY = 250;
-export const SHIFT_SECONDS = 150;
-
-export const PASSENGER = {
-  waitSeconds: 22, baseFare: 18, perSecondBonus: 2,
-  spawnInterval: 2.6, spawnJitter: 1.2, maxWaiting: 3,
-};
-
-export const TRAFFIC = {
-  speed: 260, speedPerLevel: 28, interval: 0.85,
-  intervalScale: 0.92, minInterval: 0.32, chickenChance: 0.22,
-};
-
-export const PICKUP = { radius: 78, deliverRadius: 92 };
-
-export const LEVEL = { seconds: 25, max: 8 };
-
-export const COMBO = { window: 4.0, max: 8 };
-
+export const POOL_SIZE = 48;
+export const FONT = "system-ui, sans-serif";
 export const PALETTE = {
-  sky: '#ffd98a', skyTop: '#ff9d5c', road: '#3a3f4a',
-  roadEdge: '#f2c94c', grass: '#5aa654', grass2: '#4c9247',
-  becak: '#ff4d4d', becakRoof: '#2b2f3a', passenger: '#4fc3f7',
-  motor: '#e5534b', chicken: '#ffffff', coin: '#f2c94c',
-  panel: '#1c2230', panelEdge: '#f2c94c', text: '#ffffff',
-  muted: '#c8cedb', danger: '#ff3b30', good: '#2ee66b',
+  backdrop: "#1a120b",
+  sky: "#ffe9c4",
+  ground: "#3a3a3a",
+  road: "#4a4a4a",
+  line: "#ffd23f",
+  player: "#1f9d55",
+  block: "#c0392b",
+  coin: "#f1c40f",
+  text: "#2b1a0a",
+  muted: "#6b4a2a",
+  panel: "#fff8e7"
 };
 
-export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-export const BEST_KEY = 'becak-rush.best';
-export const MONEY_KEY = 'becak-rush.money';
-
-export const PASSENGERS = ['Budi', 'Siti', 'Andi', 'Dewi', 'Rudi', 'Ani', 'Joko', 'Putri'];
-export const DESTINATIONS = ['Pasar Gede', 'Stasiun', 'Alun-Alun', 'Kampung Kauman', 'Terminal', 'Sekolah', 'Masjid Agung', 'Rumah Sakit'];
-export const SPEEDS = { slow: 120, normal: 230, fast: 340 };
+export const BEST_KEY = 'becak-rush-best';
+export const STEP = 1 / 60;

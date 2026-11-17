@@ -10,7 +10,3 @@ export function createRandom(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-export function rand(min, max) { return min + Math.random() * (max - min); }
-export function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-export function dist(a, b, c, d) { if (typeof c === 'number') return Math.hypot(a - c, b - d); return Math.hypot(a.x - b.x, a.y - b.y); }

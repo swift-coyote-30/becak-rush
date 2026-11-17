@@ -1,100 +1,78 @@
-// Becak Rush world: passengers, traffic, chickens, destinations.
-import { FIELD, PASSENGER, TRAFFIC } from './config.js';
-
-const NAMES = ['Bu Tini', 'Pak Budi', 'Mbak Sari', 'Mas Joko', 'Nek Minah', 'Dek Rani', 'Pak RT', 'Bu Warung'];
-const STALLS = ['Warung Soto', 'Pasar Pagi', 'Sekolah SD', 'Masjid Al-Barokah', 'Stasiun', 'Puskesmas', 'Alun-Alun', 'Toko Kelontong'];
-let nameIdx = 0;
-let stallIdx = 0;
-
-export function createWorld() {
-  return {
-    time: 0, spawnTimer: 1.2, trafficTimer: 0.6,
-    waiting: [], onboard: null, traffic: [], chickens: [],
-    delivered: 0, lost: 0, coins: [], floats: [],
-  };
+import { BLOCK, COIN, FIELD, LEVEL, LIVES, PLAYER, POOL_SIZE } from './config.js';
+export const KIND_BLOCK = 0;
+export const KIND_COIN = 1;
+export const KIND_BAKPIA = 2;
+export const EVENT_HIT = 1;
+export const EVENT_COIN = 2;
+export const EVENT_OVER = 4;
+export const EVENT_HEAL = 8;
+function overlaps(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
-
-function randomX() { return 90 + Math.random() * (FIELD.width - 180); }
-function randomRoadY() { return FIELD.roadTop + 40 + Math.random() * (FIELD.roadBottom - FIELD.roadTop - 90); }
-
-export function spawnPassenger(world) {
-  if (world.waiting.length >= PASSENGER.maxWaiting) return;
-  const side = Math.random() < 0.5 ? 'left' : 'right';
-  const dest = STALLS[stallIdx % STALLS.length]; stallIdx++;
-  const name = NAMES[nameIdx % NAMES.length]; nameIdx++;
-  world.waiting.push({
-    id: world.time + Math.random(),
-    name, dest,
-    x: side === 'left' ? 62 : FIELD.width - 62,
-    y: randomRoadY(),
-    side, waitLeft: PASSENGER.waitSeconds,
-    bob: Math.random() * 6.28,
-    destX: 90 + Math.random() * (FIELD.width - 180),
-    destY: randomRoadY(),
-  });
-}
-
-export function spawnTraffic(world, level) {
-  const isChicken = Math.random() < TRAFFIC.chickenChance;
-  const speed = (TRAFFIC.speed + level * TRAFFIC.speedPerLevel) * (0.85 + Math.random() * 0.4);
-  const fromLeft = Math.random() < 0.5;
-  if (isChicken) {
-    world.chickens.push({ x: randomX(), y: randomRoadY(), vx: (Math.random() < 0.5 ? -1 : 1) * 55, vy: 0, t: 0, peck: Math.random() * 6 });
-  } else {
-    world.traffic.push({
-      x: fromLeft ? -90 : FIELD.width + 90,
-      y: randomRoadY(),
-      vx: fromLeft ? speed : -speed,
-      w: 78, h: 40,
-      color: ['#e5534b', '#4fc3f7', '#ff9f43', '#a55eea'][Math.floor(Math.random() * 4)],
-      fromLeft,
-    });
+export function createWorld(random) {
+  const player = { x: 0, y: FIELD.groundY - PLAYER.height, width: PLAYER.width, height: PLAYER.height, invulnerable: 0 };
+  const items = [];
+  for (let i = 0; i < POOL_SIZE; i++) items.push({ active: false, kind: KIND_BLOCK, x: 0, y: 0, width: 0, height: 0, speed: 0 });
+  const state = { player, items, score: 0, lives: LIVES, level: 1, elapsed: 0, blockTimer: 0, coinTimer: 0, bakpiaTimer: 6 };
+  function reset() {
+    player.x = 275;
+    player.invulnerable = 0;
+    for (const it of items) it.active = false;
+    state.score = 0; state.lives = LIVES; state.level = 1; state.elapsed = 0;
+    state.blockTimer = BLOCK.interval; state.coinTimer = COIN.interval; state.bakpiaTimer = 6;
   }
-}
-
-export function updateWorld(world, dt, level) {
-  world.time += dt;
-  world.spawnTimer -= dt;
-  if (world.spawnTimer <= 0) {
-    spawnPassenger(world);
-    world.spawnTimer = PASSENGER.spawnInterval + Math.random() * PASSENGER.spawnJitter;
+  function freeItem() {
+    for (let i = 0; i < items.length; i++) if (!items[i].active) return items[i];
+    return null;
   }
-  world.trafficTimer -= dt;
-  const interval = Math.max(TRAFFIC.minInterval, TRAFFIC.interval * Math.pow(TRAFFIC.intervalScale, level));
-  if (world.trafficTimer <= 0) {
-    spawnTraffic(world, level);
-    world.trafficTimer = interval * (0.6 + Math.random() * 0.8);
+  function spawnBlock() {
+    const it = freeItem(); if (!it) return;
+    it.active = true; it.kind = KIND_BLOCK;
+    it.width = BLOCK.minWidth + random() * (BLOCK.maxWidth - BLOCK.minWidth);
+    it.height = BLOCK.height; it.x = 100 + random() * (440 - it.width); it.y = -it.height;
+    it.speed = BLOCK.speed + BLOCK.speedPerLevel * (state.level - 1) + random() * BLOCK.speedJitter;
   }
-  // waiting timers
-  for (let i = world.waiting.length - 1; i >= 0; i--) {
-    const p = world.waiting[i];
-    p.waitLeft -= dt; p.bob += dt * 4;
-    if (p.waitLeft <= 0) { world.waiting.splice(i, 1); world.lost++; }
+  function spawnCoin() {
+    const it = freeItem(); if (!it) return;
+    it.active = true; it.kind = KIND_COIN;
+    it.width = COIN.size; it.height = COIN.size;
+    it.x = 100 + random() * (440 - it.width); it.y = -it.height;
+    it.speed = COIN.speed + COIN.speedPerLevel * (state.level - 1);
   }
-  // traffic move
-  for (let i = world.traffic.length - 1; i >= 0; i--) {
-    const t = world.traffic[i];
-    t.x += t.vx * dt;
-    if (t.x < -140 || t.x > FIELD.width + 140) world.traffic.splice(i, 1);
+  function spawnBakpia() {
+    const it = freeItem(); if (!it) return;
+    it.active = true; it.kind = KIND_BAKPIA;
+    it.width = 46; it.height = 36;
+    it.x = 100 + random() * (440 - it.width); it.y = -it.height;
+    it.speed = COIN.speed + COIN.speedPerLevel * (state.level - 1);
   }
-  // chickens wander + peck
-  for (const c of world.chickens) {
-    c.t += dt; c.peck += dt * 3;
-    c.x += c.vx * dt;
-    if (c.x < 50 || c.x > FIELD.width - 50) c.vx *= -1;
-    if (Math.random() < 0.01) c.vx *= -1;
+  function blockInterval() { return Math.max(BLOCK.minInterval, BLOCK.interval * Math.pow(BLOCK.intervalScale, state.level - 1)); }
+  function step(dt, direction, harmless) {
+    let events = 0;
+    state.elapsed += dt;
+    state.level = Math.min(LEVEL.max, 1 + Math.floor(state.elapsed / LEVEL.seconds));
+    player.x = Math.min(450, Math.max(100, player.x + direction * PLAYER.speed * dt));
+    if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
+    state.blockTimer -= dt; state.coinTimer -= dt; state.bakpiaTimer -= dt;
+    if (state.blockTimer <= 0) { spawnBlock(); state.blockTimer = blockInterval(); }
+    if (state.coinTimer <= 0) { spawnCoin(); state.coinTimer = COIN.interval + random() * COIN.intervalJitter; }
+    if (state.bakpiaTimer <= 0) { spawnBakpia(); state.bakpiaTimer = 9 + random() * 6; }
+    for (const it of items) {
+      if (!it.active) continue;
+      it.y += it.speed * dt;
+      if (it.y > FIELD.height) {
+        it.active = false;
+        if (it.kind === KIND_BLOCK && !harmless) state.score += BLOCK.dodgePoints;
+        continue;
+      }
+      if (harmless || player.invulnerable > 0) continue;
+      if (!overlaps(player, it)) continue;
+      it.active = false;
+      if (it.kind === KIND_COIN) { state.score += COIN.points; events |= EVENT_COIN; }
+      else if (it.kind === KIND_BAKPIA) { if (state.lives < LIVES) state.lives += 1; state.score += 5; events |= EVENT_HEAL; }
+      else { state.lives -= 1; player.invulnerable = PLAYER.invulnerable; events |= EVENT_HIT; if (state.lives <= 0) events |= EVENT_OVER; }
+    }
+    return events;
   }
-  world.chickens = world.chickens.filter(c => c.t < 14);
-  // coins + floats
-  for (const c of world.coins) { c.y -= 40 * dt; c.life -= dt; }
-  world.coins = world.coins.filter(c => c.life > 0);
-  for (const f of world.floats) { f.y -= 32 * dt; f.life -= dt; }
-  world.floats = world.floats.filter(f => f.life > 0);
-}
-
-export function addFloat(world, x, y, text, color) {
-  world.floats.push({ x, y, text, color: color || '#ffffff', life: 1.4 });
-}
-export function addCoin(world, x, y, amount) {
-  world.coins.push({ x, y, amount, life: 0.9 });
+  return { state, reset, step };
 }
