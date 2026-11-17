@@ -1,3 +1,10 @@
+[![make.fun](https://make.fun/badge/best-game-01.svg)](https://make.fun/bounty/best-game-01)
+
+[![rank](https://make.fun/badge/best-game-01/swift-coyote-30/becak-rush/rank.svg)](https://make.fun/bounty/best-game-01)
+
+[![reward](https://make.fun/badge/best-game-01/swift-coyote-30/becak-rush/reward.svg)](https://make.fun/bounty/best-game-01)
+
+
 # Becak Rush - Yogyakarta Malioboro Edition 🛺
 
 **Becak Rush** adalah game arcade *endless runner* bernuansa khas jalanan Malioboro, Yogyakarta. Kendalikan becak tradisional, jemput calon penumpang (`P`), nikmati camilan oleh-oleh Bakpia Pathok (`B`) untuk memulihkan nyawa, dan hindari rintangan jalan yang melaju kencang!
