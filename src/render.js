@@ -1,26 +1,59 @@
+/**
+ * @fileoverview Becak Rush - Canvas Renderer
+ * Handles HTML5 2D canvas painting for Malioboro field, becak player, items, HUD, and dialog panels.
+ */
+
 import { FIELD } from './config.js';
 import { KIND_BAKPIA, KIND_COIN } from './world.js';
+
+/** Screen state: Title screen */
 export const SCREEN_TITLE = 'title';
+
+/** Screen state: Active gameplay */
 export const SCREEN_PLAY = 'play';
+
+/** Screen state: Paused game */
 export const SCREEN_PAUSED = 'paused';
+
+/** Screen state: Game over screen */
 export const SCREEN_OVER = 'over';
+
+/**
+ * Creates and returns the game renderer associated with the HTML canvas.
+ * 
+ * @param {HTMLCanvasElement} canvas - The target 2D canvas element
+ * @returns {Object} Renderer interface containing the `draw` method
+ */
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
+
+  /** Resizes canvas drawing buffer to match configured field dimensions. */
   function resize() {
     canvas.width = FIELD.width;
     canvas.height = FIELD.height;
   }
   resize();
+  /**
+   * Helper to draw filled text on canvas.
+   */
   function text(v,x,y,s,c,a) {
     ctx.fillStyle = c;
     ctx.font = 'bold ' + s + 'px sans-serif';
     ctx.textAlign = a || 'left';
     ctx.fillText(v,x,y);
   }
+
+  /**
+   * Helper to draw a filled rectangle on canvas.
+   */
   function rect(x,y,w,h,c) {
     ctx.fillStyle = c;
     ctx.fillRect(x,y,w,h);
   }
+
+  /**
+   * Renders the Malioboro street field, sidewalks, sky, and road lane dividers.
+   */
   function drawField(st) {
     rect(0,0,640,1280,'#ffe9c4');
     rect(0,0,640,120,'#ffd9a0');
@@ -32,6 +65,10 @@ export function createRenderer(canvas) {
     ctx.fillStyle = '#fff8e7';
     for(let y=140;y<1280;y+=100) ctx.fillRect(315,y,10,40);
   }
+
+  /**
+   * Renders the player's Becak (green body, canopy, wheels).
+   */
   function drawBecak(p) {
     const x = p.x, y = p.y;
     ctx.fillStyle = '#1f9d55';
@@ -46,6 +83,9 @@ export function createRenderer(canvas) {
     ctx.fillStyle = '#222';
     ctx.fillRect(x+60,y+20,10,6);
   }
+  /**
+   * Renders all active items (passenger coins, Bakpia pastries, and obstacles).
+   */
   function drawItems(st) {
     for (const it of st.items) {
       if (!it.active) continue;
@@ -65,11 +105,19 @@ export function createRenderer(canvas) {
       }
     }
   }
+
+  /**
+   * Renders the heads-up display (score, lives remaining, current level).
+   */
   function drawHud(st) {
     text('Score: ' + st.score,12,28,20,'#222');
     text('Nyawa: ' + st.lives,500,28,20,'#cc2222');
     text('Level: ' + st.level,260,28,20,'#222');
   }
+
+  /**
+   * Renders modal dialog panels (Title, Pause, Game Over).
+   */
   function drawPanel(t, lines, p) {
     rect(80,520,480,240,'#fff8e7');
     text(t,320,570,28,'#222','center');
@@ -77,9 +125,14 @@ export function createRenderer(canvas) {
     for (const l of lines) { text(l,320,y,16,'#555','center'); y += 26; }
     text(p,320,730,16,'#1f9d55','center');
   }
+
   const TITLE_LINES = ['BECAK RUSH','Jogja Edition','Kumpulin Penumpang P'];
   const PAUSED_LINES = ['Game dijeda'];
   const OVER_LINES = ['Becak nabrak!'];
+
+  /**
+   * Main render dispatch function rendering the complete frame according to current game state and screen.
+   */
   function draw(st, screen, best) {
     drawField(st);
     if (screen === SCREEN_TITLE) {
